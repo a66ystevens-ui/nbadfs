@@ -161,7 +161,8 @@ def sync_data(request: SyncRequest):
     try:
         return sync(request)
     except FeedError as exc:
-        raise HTTPException(502,{'message':str(exc),'snapshot_id':exc.snapshot_id,'retry_after':exc.retry_after}) from None
+        raise HTTPException(502,{'message':str(exc),'snapshot_id':exc.snapshot_id,'retry_after':exc.retry_after,
+                                 'provider_status':exc.status_code,'reason_code':exc.reason_code}) from None
     finally:
         sync_lock.release()
 

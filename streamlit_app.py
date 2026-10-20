@@ -80,19 +80,28 @@ def main():
         st.header('SportsDataIO')
         with st.form('credential',clear_on_submit=True):
             entered=st.text_input('API key',type='password',help='Private to this browser session. Clears when the session ends.')
+            test_feed=st.selectbox('Authentication test feed',['players','games','player_stats','projections','injuries'],
+                help='Choose an endpoint included in your NBA trial or subscription. A rejected endpoint does not prove all feeds are unavailable.')
             connect=st.form_submit_button('Connect & test')
         if connect:
-            if not re.fullmatch(r'[A-Za-z0-9_-]{16,256}',entered.strip()):
+            if entered.strip() and not re.fullmatch(r'[A-Za-z0-9_-]{16,256}',entered.strip()):
                 st.error('Enter a valid API key; its value is never included in errors.')
                 connect=False
-            else:
+            elif entered.strip():
                 st.session_state['api_key']=SecretStr(entered.strip())
+                st.session_state.pop('connection_check',None)
+            elif not (st.session_state.get('api_key') or (protected and secret('SPORTSDATAIO_API_KEY'))):
+                st.error('Enter your NBA API key first.')
+                connect=False
         if st.button('Clear session key'):
             st.session_state.pop('api_key',None)
+            st.session_state.pop('connection_check',None)
             connect=False
         private=st.session_state.get('api_key')
         key=private.get_secret_value() if private is not None else (secret('SPORTSDATAIO_API_KEY') if protected else None)
         st.caption('Key configured' if key else 'No active key · demo and CSV imports available')
+        if st.session_state.get('connection_check'):
+            st.caption(st.session_state['connection_check'])
         if secret('SPORTSDATAIO_API_KEY') and not protected:
             st.warning('Configure APP_PASSWORD before enabling a shared server API key. It is currently disabled.')
         game_date=st.date_input('Slate date (New York)',value=day)
@@ -143,9 +152,18 @@ def main():
                 checkpoint()
 
         if connect:
-            response=action(lambda:sync(SyncRequest(provider='sportsdataio',feed='players')))
+            response=action(lambda:sync(SyncRequest(provider='sportsdataio',feed=test_feed,
+                date=game_date if test_feed in {'games','player_stats','projections'} else None)))
             if response:
-                st.success(f"Connected. Archived {response['record_count']} player records.")
+                st.session_state['connection_check']=f'Last test: {test_feed} accepted'
+                st.success(f"Connected to NBA {test_feed}. Archived {response['record_count']} records.")
+            else:
+                st.session_state['connection_check']=f'Last test: {test_feed} failed; see the error above'
+                with st.expander('NBA free-trial connection checklist',expanded=True):
+                    st.write('1. Open your SportsDataIO dashboard and confirm the NBA trial is active.')
+                    st.write('2. Copy that trial’s API key into the sidebar. Avoid a key for another sport or a different product.')
+                    st.write(f'3. In SportsDataIO API Explorer, test NBA {test_feed} with the same key. Do not copy a URL containing the key into chat.')
+                    st.write('4. If the Explorer also rejects it, check trial activation/expiry or regenerate the key through SportsDataIO. If it succeeds there, report only the endpoint name and HTTP status here.')
 
         data_tab,build_tab,archive_tab=st.tabs(['Data & imports','Build portfolio','Archive & saved runs'])
         with data_tab:

@@ -125,6 +125,23 @@ class HostingTests(unittest.TestCase):
         with session_credentials(None):
             self.assertIsNone(sportsdataio_key())
 
+    def test_trial_can_test_its_selected_feed_and_retry_saved_key(self):
+        app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'streamlit_app.py'),default_timeout=60).run()
+        for widget in app.text_input:
+            if widget.label=='API key': widget.set_value('fixture-private-key')
+        for widget in app.selectbox:
+            if widget.label=='Authentication test feed': widget.set_value('projections')
+        result={'record_count':0,'snapshot':{'id':'fixture','records':[]}}
+        with patch('nbadfs.providers.sync',return_value=result) as fetch:
+            app.button(key='FormSubmitter:credential-Connect & test').click().run()
+            self.assertEqual(fetch.call_args.args[0].feed,'projections')
+            self.assertIsNotNone(fetch.call_args.args[0].date)
+        self.assertEqual(len(app.exception),0)
+        with patch('nbadfs.providers.sync',return_value=result) as fetch:
+            app.button(key='FormSubmitter:credential-Connect & test').click().run()
+            fetch.assert_called_once()
+        self.assertEqual(len(app.exception),0)
+
 
 if __name__=='__main__':
     unittest.main()

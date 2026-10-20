@@ -60,10 +60,40 @@ class SyncRequest(StrictModel):
 
 
 class FeedError(Exception):
-    def __init__(self, detail, *, snapshot_id=None, retry_after=None):
+    def __init__(self, detail, *, snapshot_id=None, retry_after=None, reason_code=None, status_code=None):
         super().__init__(detail)
         self.snapshot_id = snapshot_id
         self.retry_after = retry_after
+        self.reason_code = reason_code
+        self.status_code = status_code
+
+
+def authentication_error(raw,request,status):
+    """Classify known provider errors without echoing arbitrary response text or keys."""
+    try:
+        payload=json.loads(raw)
+        description=payload.get('Description','') if isinstance(payload,dict) else ''
+        description=description.lower() if isinstance(description,str) else ''
+    except (ValueError,TypeError):
+        description=''
+    if 'missing' in description and ('key' in description or 'token' in description):
+        reason='key_not_received'
+        text='SportsDataIO reports that it did not receive an API key.'
+    elif 'expired' in description:
+        reason='expired_access'
+        text='SportsDataIO reports expired key or subscription access.'
+    elif 'invalid' in description and ('key' in description or 'token' in description):
+        reason='key_rejected'
+        text='SportsDataIO reports that the API key is invalid for this request.'
+    elif any(term in description for term in ['subscription','not authorized','not authorised','not subscribed','permission']):
+        reason='product_access_rejected'
+        text='SportsDataIO reports that this key does not have the required product access.'
+    else:
+        reason='authentication_rejected'
+        text='SportsDataIO rejected this key or its access to the selected NBA feed.'
+    return reason,(f'{text} HTTP {status}; NBA feed: {request.feed}. '
+        'Copy the key from your active NBA trial/subscription and test the same endpoint in SportsDataIO API Explorer. '
+        'Access to another sport or product does not establish access to this feed. Do not share the key in chat.')
 
 
 def timestamp(value):
@@ -219,8 +249,12 @@ def sync(request, *, client=None):
                 if response.status_code != 200:
                     archive.attempt(provider,request.feed,request.resource,'http_error',snapshot_id=sid,
                                     detail=f'HTTP {response.status_code}',retry_after=retry_after)
-                    hint = '; check key and NBA product access' if provider == 'sportsdataio' and response.status_code in {401,403} else ''
-                    raise FeedError(f'{provider} returned HTTP {response.status_code}{hint}',snapshot_id=sid,retry_after=retry_after)
+                    reason=None
+                    message=f'{provider} returned HTTP {response.status_code}'
+                    if provider=='sportsdataio' and response.status_code in {401,403}:
+                        reason,message=authentication_error(raw,request,response.status_code)
+                    raise FeedError(message,snapshot_id=sid,retry_after=retry_after,
+                                    reason_code=reason,status_code=response.status_code)
         except httpx.HTTPError as exc:
             # Exception strings may include proxy credentials. Persist only the class.
             archive.attempt(provider,request.feed,request.resource,'network_error',detail=type(exc).__name__)

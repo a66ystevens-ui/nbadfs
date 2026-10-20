@@ -72,3 +72,13 @@ The tested runtime is Python 3.12 with `requirements.lock`. Root `requirements.t
 ```
 
 Tests include Streamlit's AppTest: actual demo generation, password-gated navigation, session key entry, and independent browser-session databases. Separate tests cover parallel credential contexts, incremental archive backup/restore, conflict rejection, and Supabase upload/list/download behavior. They do not replace a live Community Cloud deployment or live provider authentication check.
+
+## NBA free trial: HTTP 401 or 403
+
+The research and session-storage notices are informational. HTTP 401/403 means the selected provider operation was rejected; it does not establish whether every NBA feed is inaccessible.
+
+The sidebar now offers **Authentication test feed**. Choose an NBA endpoint included in your trial, enter the NBA key, and select **Connect & test**. Games, player stats, and projections use the selected slate date. A blank key input retries the existing session/server key if one is configured. A newly entered key replaces the previous session key.
+
+Test the **same endpoint** in SportsDataIO's API Explorer with the same key. If the Explorer also rejects it, confirm NBA trial activation, expiration and endpoint entitlement, or regenerate the NBA key in the provider dashboard. If the Explorer succeeds but CourtVision fails, report only the operation name, HTTP status and safe error category. Never share the key or a query URL containing it.
+
+CourtVision sends `Ocp-Apim-Subscription-Key` as a header. Known provider responses are classified as key not received, key rejected, expired access, product access rejected, or unspecified authentication rejection. Arbitrary provider error descriptions are not echoed into the UI; raw responses retain the existing private archive protections. These diagnostics do not activate a trial or repair a rejected key. Trial data may be scrambled, so authenticated access alone does not establish forecast validity.

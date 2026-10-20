@@ -30,3 +30,7 @@ Actual connectivity checks: SportsDataIO's unauthenticated NBA Players endpoint 
 All 31 tests pass with Streamlit 1.66.0 and Python 3.12. AppTest executes the UI, generates two demo entries, exercises password-gated navigation and private key entry, and verifies independent session databases. Context tests run two user scopes in parallel. Backup tests cover full/delta restoration, idempotence, hash verification, immutable conflict rejection, and mocked private Supabase upload/list/download/restore. The live Streamlit server serves both its root page and health endpoint successfully; dependency checks pass.
 
 No Community Cloud app has been published by these checks, and no real Supabase account or authenticated SportsDataIO request was exercised. Deployment/account authorization and live persistence verification remain separate steps.
+
+## Trial authentication diagnostics
+
+All 33 tests pass after adding per-feed authentication tests, stored-key retries, and safe 401/403 classification. Tests cover missing/invalid/expired/product-restricted/unknown provider descriptions without echoing arbitrary provider text or credentials. The Streamlit UI test selects projections, verifies the date is supplied, and retries the existing key after the password field clears. A real NBA free-trial key has not been validated from this workspace; provider-side Explorer results remain required to diagnose the user's rejection.

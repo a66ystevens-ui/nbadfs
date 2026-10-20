@@ -138,6 +138,24 @@ class DataTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             SyncRequest(provider='sportsdataio',feed='players',date='2026-10-20')
 
+    def test_authentication_errors_are_classified_without_echoing_provider_text(self):
+        cases=[('API key missing in request','key_not_received'),
+               ('Invalid subscription key: unrelated-sensitive-value','key_rejected'),
+               ('Your trial has expired','expired_access'),
+               ('You are not subscribed to this product','product_access_rejected'),
+               ('unrelated-sensitive-value','authentication_rejected')]
+        with patch.dict(os.environ,{'SPORTSDATAIO_API_KEY':'private-test-key'}):
+            for description,reason in cases:
+                raw=json.dumps({'Description':description}).encode()
+                with self.client(raw,401) as client:
+                    with self.assertRaises(FeedError) as ctx:
+                        sync(SyncRequest(provider='sportsdataio',feed='players'),client=client)
+                self.assertEqual(ctx.exception.reason_code,reason)
+                self.assertEqual(ctx.exception.status_code,401)
+                self.assertNotIn('unrelated-sensitive-value',str(ctx.exception))
+                self.assertNotIn('private-test-key',str(ctx.exception))
+                self.assertIsNotNone(ctx.exception.snapshot_id)
+
     def test_csv_archival_api_raw_export_and_provenance_gate(self):
         client=TestClient(app)
         text='id,name,team,game,positions,salary,start,minutes,fppm\n123,Example,ATL,ATL-BOS,PG,6000,2026-10-21T23:00:00Z,30,1.1'
